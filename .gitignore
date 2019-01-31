@@ -1,0 +1,13 @@
+.DS_Store
+.idea/
+*.iml
+
+weather/
+
+# Datasets
+fast-rcnn-object-detection/dataset/
+fast-rcnn-object-detection/dataset-training-test/
+cifar-10-classification/dataset-reshaped-scaled/
+cifar-10-classification/dataset-reshaped-normalized/
+cifar-10-classification/dataset-reshaped/
+regular-mnist-digit-recognition/dataset/
