@@ -13,6 +13,7 @@ def detect_and_classify(
         Shape = (# rois, # classes - background, # reg fields = 4)
     :param max_output_size: maximum number of boxes to be selected by non max suppression
     :param score_threshold: hreshold for deciding when to remove boxes based on score
+    :param number_classes: number of classes used for classification (including background)
 
     :return: All instances of objects detected along with their classes
         Shape = (# objects detected, # detection fields = 5) where detection fields contain:

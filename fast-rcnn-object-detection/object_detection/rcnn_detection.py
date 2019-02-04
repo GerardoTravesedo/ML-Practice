@@ -3,10 +3,8 @@ import tensorflow as tf
 import time
 import learning_rate_manager as rm
 import numpy as np
-import reduced_resnet_builder
-import rcnn_multitask_loss as mloss
-import roi_pooling_layer
 import dataset_reader as reader
+import rcnn_net
 
 EPOCHS = 15
 
@@ -14,7 +12,7 @@ NUMBER_CHANNELS = 3
 CHANNEL_PIXELS = 600
 
 NUMBER_RESNET_LAYERS = 15
-NUMBER_HIDDEN_NODES = 1000
+NUMBER_HIDDEN_NODES = 800
 
 # 20 different types of objects + background
 NUMBER_CLASSES = 21
@@ -55,78 +53,8 @@ detection_label_batch = tf.placeholder(
 
 learning_rate = tf.placeholder(tf.float32, name="LearningRate")
 
-########
-# Neural net
-#######
 
-he_init = tf.contrib.layers.variance_scaling_initializer()
-
-resnet = reduced_resnet_builder.ReducedResnetBuilder(he_init) \
-    .build_resnet(image_input_batch, NUMBER_RESNET_LAYERS)
-
-roi_pooling_layer = roi_pooling_layer\
-    .RoiPoolingLayer(resnet, roi_input_batch, 7, 7, 4).get_roi_pooling_layer()
-
-pool2_flat = tf.reshape(roi_pooling_layer, [-1, 7 * 7 * 64])
-
-fc_layer_1 = tf.layers.dense(
-    pool2_flat, NUMBER_HIDDEN_NODES, activation=tf.nn.leaky_relu, kernel_initializer=he_init)
-
-fc_layer_2 = tf.layers.dense(
-    fc_layer_1, NUMBER_HIDDEN_NODES, activation=tf.nn.leaky_relu, kernel_initializer=he_init)
-
-#######
-# RoI classification branch
-#######
-class_fc = tf.layers.dense(
-    fc_layer_2, NUMBER_CLASSES, activation=tf.nn.leaky_relu, kernel_initializer=he_init,
-    name="Logits")
-class_softmax = tf.nn.softmax(class_fc)
-
-#######
-# RoI detection branch
-#######
-detection_fc = tf.layers.dense(
-    fc_layer_2, NUMBER_CLASSES, activation=tf.nn.leaky_relu, kernel_initializer=he_init)
-# The output has to be 4 regression numbers for each class that is not background
-detection_regressor = tf.layers.dense(
-    detection_fc, NUMBER_REGRESSION_FIELDS * (NUMBER_CLASSES - 1),
-    activation=tf.nn.leaky_relu, kernel_initializer=he_init, name="DetectionFields")
-# So far we have all the regression targets together in a vector for all classes. We need to convert
-# that into a matrix where rows represents classes and columns represent the predicted
-# regression targets
-detection_regressor_shape = tf.shape(detection_regressor)
-detection_regressor_reshaped = tf.reshape(
-    detection_regressor,
-    [detection_regressor_shape[0], NUMBER_CLASSES - 1, NUMBER_REGRESSION_FIELDS])
-
-#######
-# Multi-task loss
-#######
-
-# Combined loss for classification and detection
-multitask_loss = mloss.RCNNMultitaskLoss(
-    class_predictions=class_softmax,
-    detection_predictions=detection_regressor_reshaped,
-    class_labels=class_label_batch,
-    detection_labels=detection_label_batch)\
-    .multitask_loss()
-
-optimizer = tf.train.AdamOptimizer(learning_rate)
-training_op = optimizer.minimize(multitask_loss)
-
-#######
-# Testing
-#######
-
-# Axis = 1 because we want to find the max per row (horizontally)
-max_class = tf.argmax(class_softmax, 1)
-
-# In order to be able to see the graph, we need to add this line after the graph is defined
-summary_writer = tf.summary.FileWriter(LOGS_PATH, graph=tf.get_default_graph())
-
-
-def train_net(session):
+def train_net(session, training, multitask_loss):
     print "Starting training"
     training_start_time = time.time()
 
@@ -136,12 +64,12 @@ def train_net(session):
     for epoch in range(0, EPOCHS):
         print "Epoch: " + str(epoch)
         # Training with all the PASCAL VOC records for each epoch
-        training_reader = reader.DatasetReader(LIST_TRAINING_BATCH_FILES)
+        training_reader = reader.DatasetReader(LIST_TRAINING_BATCH_FILES, 1, 64, 16)
         training_batch = training_reader.get_batch()
 
         # Empty batch means we are done processing all images and rois for this epoch
         while training_batch != {}:
-            _, loss = session.run([training_op, multitask_loss], feed_dict={
+            _, loss = session.run([training, multitask_loss], feed_dict={
                 image_input_batch: training_batch["images"],
                 roi_input_batch: training_batch["rois"],
                 class_label_batch: training_batch["class_labels"],
@@ -159,25 +87,21 @@ def train_net(session):
     print "Done training. It took", (time.time() - training_start_time) / 60, "minutes"
 
 
-def test(session):
+def test(session, prediction):
     print "Starting prediction"
     prediction_start_time = time.time()
 
-    test_reader = reader.DatasetReader(LIST_TEST_BATCH_FILES)
+    test_reader = reader.DatasetReader(LIST_TEST_BATCH_FILES, 1, 64, 16)
     test_batch = test_reader.get_batch()
 
     while test_batch != {}:
-        # TODO: We need non max supression
-        predicted_classes = session.run(max_class, feed_dict={
+        predicted_classes = session.run(prediction, feed_dict={
             image_input_batch: test_batch["images"],
-            roi_input_batch: test_batch["rois"],
-            class_label_batch: test_batch["class_labels"],
-            detection_label_batch: test_batch["reg_target_labels"]
+            roi_input_batch: test_batch["rois"]
         })
 
-        # TODO: review this class
         output_analyzer.write_predictions_to_file(
-            OUTPUT_FILE, test_batch["labels"], np.transpose(predicted_classes))
+            OUTPUT_FILE, test_batch["labels"], np.transpose(predicted_classes, axes=[1, 0, 2]))
         test_batch = test_reader.get_batch()
 
     print "Done predicting. It took", (time.time() - prediction_start_time) / 60, "minutes"
@@ -186,8 +110,15 @@ def test(session):
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
 
-    train_net(sess)
-    test(sess)
+    multitask_loss_op, training_op, prediction_op = rcnn_net.get_net(
+        NUMBER_CLASSES, NUMBER_REGRESSION_FIELDS, NUMBER_RESNET_LAYERS, NUMBER_HIDDEN_NODES,
+        image_input_batch, roi_input_batch, class_label_batch, detection_label_batch, learning_rate)
+
+    # In order to be able to see the graph, we need to add this line after the graph is defined
+    tf.summary.FileWriter(LOGS_PATH, graph=tf.get_default_graph())
+
+    train_net(sess, training_op, multitask_loss_op)
+    test(sess, prediction_op)
 
     print("Run the command line:\n"
           "--> tensorboard --logdir=/tmp/tensorflow_logs "

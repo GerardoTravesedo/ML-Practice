@@ -2,14 +2,10 @@ import pickle
 import random
 import numpy as np
 
-NUMBER_IMAGES = 2
-ROIS_PER_IMAGE = 64
-MAX_FOREGROUND_ROIS_PER_IMAGE = 16
-
 
 class DatasetReader:
-
-    def __init__(self, input_files):
+    def __init__(self, input_files, number_images_in_batch, number_rois_per_image,
+            max_foreground_rois_per_image):
         """
         Creates object that will be used to get mini-batches for rcnn training and prediction
 
@@ -18,6 +14,10 @@ class DatasetReader:
         """
         self.files = input_files
         self.current_file = 0
+
+        self.number_images_in_batch = number_images_in_batch
+        self.number_rois_per_image = number_rois_per_image
+        self.max_foreground_rois_per_image = max_foreground_rois_per_image
 
         with open(input_files[self.current_file], 'rb') as fo:
             # Each item (dictionary) in the list returned by load method contains the
@@ -35,7 +35,8 @@ class DatasetReader:
 
     def get_batch(self):
         """
-        Generates a mini-batch that consists of 2 images and 64 rois for each one of them
+        Generates a mini-batch that consists of NUMBER_IMAGES images and ROIS_PER_IMAGE rois
+        for each one of them
         """
         # If we already processed the entire last file, the mini-batch will be empty
         if self.next_record >= self.total_records and self.current_file >= len(self.files) - 1:
@@ -57,10 +58,10 @@ class DatasetReader:
         # If remaining images in current file < NUMBER_IMAGES, we only process those at the end
         # of the file, not moving to the next file to compensate the missing one (mini-batch will
         # be shorter)
-        if self.total_records - self.next_record < NUMBER_IMAGES:
+        if self.total_records - self.next_record < self.number_images_in_batch:
             records_to_fetch = self.total_records - self.next_record
         else:
-            records_to_fetch = NUMBER_IMAGES
+            records_to_fetch = self.number_images_in_batch
 
         # Getting the corresponding number of input images from the file
         # The format of each image is a dictionary with all the necessary fields to do RCNN.
@@ -76,7 +77,7 @@ class DatasetReader:
             ", initial_index:", self.next_record, \
             ", final_index:", self.next_record + records_to_fetch, "}"
 
-        self.next_record = self.next_record + NUMBER_IMAGES
+        self.next_record = self.next_record + self.number_images_in_batch
         return {"images": images_batch, "rois": rois_batch, "class_labels": class_labels_batch,
                 "reg_target_labels": reg_target_labels_batch}
 
@@ -106,13 +107,14 @@ class DatasetReader:
             # include them all in the rois batch.
             # If there are more foreground images than the max, then randomly pick
             # MAX_FOREGROUND_ROIS_PER_IMAGE of them
-            if len(foreground_rois) <= MAX_FOREGROUND_ROIS_PER_IMAGE:
+            if len(foreground_rois) <= self.max_foreground_rois_per_image:
                 dataset_batch.extend(foreground_rois)
-                max_background_images = ROIS_PER_IMAGE - len(foreground_rois)
+                max_background_images = self.number_rois_per_image - len(foreground_rois)
             else:
                 dataset_batch.extend([random.choice(foreground_rois)
-                                      for _ in range(MAX_FOREGROUND_ROIS_PER_IMAGE)])
-                max_background_images = ROIS_PER_IMAGE - MAX_FOREGROUND_ROIS_PER_IMAGE
+                                      for _ in range(self.max_foreground_rois_per_image)])
+                max_background_images = \
+                    self.number_rois_per_image - self.max_foreground_rois_per_image
 
             # Adding the remaining number of rois for the batch using background rois
             dataset_batch.extend([random.choice(background_rois)

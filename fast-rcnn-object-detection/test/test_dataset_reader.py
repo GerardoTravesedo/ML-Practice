@@ -7,7 +7,7 @@ class TestRoiTools(object):
     def test_read_mini_batches(self):
         input_folder = "test/data/test-batch-reader-dataset/"
         input_files = [input_folder + "rcnn_dataset_12276", input_folder + "rcnn_dataset_12277"]
-        target = dataset_reader.DatasetReader(input_files)
+        target = dataset_reader.DatasetReader(input_files, 2, 64, 16)
 
         batch1 = target.get_batch()
         assert batch1["images"].shape == (2, 600, 600, 3)

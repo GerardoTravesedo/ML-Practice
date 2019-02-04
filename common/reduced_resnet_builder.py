@@ -31,7 +31,6 @@ class ReducedResnetBuilder:
 
         return input_next_unit
 
-    # TODO: Understand why batch normalization before activation
     def _add_residual_unit(self, input_batch, number_filters, unit_number):
         identifier = "Filters" + str(number_filters) + "-Unit" + str(unit_number)
 
