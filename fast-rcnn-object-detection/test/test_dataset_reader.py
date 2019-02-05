@@ -17,6 +17,23 @@ class TestRoiTools(object):
         assert np.sum(batch1["class_labels"][0], axis=0)[0] == 59
         assert np.sum(batch1["class_labels"][1], axis=0)[0] == 59
 
+        # Checking ground truth information
+        expected_gt_data = np.array([
+            np.array([{"class": "person", "bbox": np.array([214, 121, 216, 300])}]),
+            np.array([{"class": "aeroplane", "bbox": np.array([124, 166, 325, 224])},
+             {"class": "aeroplane", "bbox": np.array([159, 187,  76,  74])},
+             {"class": "person", "bbox": np.array([234, 384, 21, 104])},
+             {"class": "person", "bbox": np.array([31, 403, 21, 104])}])
+        ])
+        assert batch1["gt_objects"].shape == (2,)
+        np.testing.assert_equal(expected_gt_data[0][0], batch1["gt_objects"][0][0])
+        assert batch1["gt_objects"][0].shape == (1,)
+        np.testing.assert_equal(expected_gt_data[1][0], batch1["gt_objects"][1][0])
+        np.testing.assert_equal(expected_gt_data[1][1], batch1["gt_objects"][1][1])
+        np.testing.assert_equal(expected_gt_data[1][2], batch1["gt_objects"][1][2])
+        np.testing.assert_equal(expected_gt_data[1][3], batch1["gt_objects"][1][3])
+        assert batch1["gt_objects"][1].shape == (4,)
+
         assert batch1["reg_target_labels"].shape == (2, 64, 4)
 
         batch2 = target.get_batch()

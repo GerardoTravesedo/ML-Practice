@@ -5,6 +5,13 @@ class RoiPoolingLayer:
     def __init__(
         self, feature_map, rois_batch, roi_pooling_height,
             roi_pooling_width, ratio_image_to_feature_map):
+        """
+        :param feature_map: feature map to use as input for pooling
+        :param rois_batch: batch of rois
+        :param roi_pooling_height: number of rows to split the feature map into to do max pooling
+        :param roi_pooling_width: number of columns to split the feature map into to do max pooling
+        :param ratio_image_to_feature_map: ratio of original image size to feature map size
+        """
         self._feature_map = feature_map
         self._feature_map_shape = tf.shape(feature_map)
         self._roi_batch = rois_batch
@@ -13,6 +20,9 @@ class RoiPoolingLayer:
         self._ratio_image_to_feature_map = float(ratio_image_to_feature_map)
 
     def get_roi_pooling_layer(self):
+        """
+        :return: tensorflow operator that does roi pooling
+        """
         # Each roi in the batch has dimensions based on the original image size. Since we are
         # extracting the corresponding portion of the feature map, which is smaller than the
         # original size, we need to resize the rois

@@ -45,6 +45,17 @@ def generate_training_test_sets():
 
 
 def get_image_data_training(image_path, annotation_path):
+    """
+    Generates the data necessary for rcnn training. This info includes:
+        - Resized image pixels
+        - Ground truth data including bounding boxes and classes of the different objects
+        - RoIs for both foreground and background classes
+
+    :param image_path: path to the image we are generating data for
+    :param annotation_path: path to the annotations of the image were are generating data for
+
+    :return: information about the image including pixels, ground truth data and rois
+    """
     image_info = {}
 
     # Adding resized image to the dictionary

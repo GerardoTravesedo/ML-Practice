@@ -3,6 +3,12 @@ import tensorflow as tf
 
 class RCNNMultitaskLoss:
     def __init__(self, class_predictions, detection_predictions, class_labels, detection_labels):
+        """
+        :param class_predictions: batch of classification scores for the different rois
+        :param detection_predictions: batch of predicted regression targets for the different rois
+        :param class_labels: batch of classification labels for the different rois
+        :param detection_labels: batch of regression target labels for the different rois
+        """
         self._class_predictions = class_predictions
         self._detection_predictions = detection_predictions
         self._class_labels = class_labels
@@ -11,6 +17,9 @@ class RCNNMultitaskLoss:
         self._detection_loss = 0.
 
     def multitask_loss(self):
+        """
+        :return: tensorflow operator to calculate combined classification and detection loss
+        """
         self._classification_loss = self._get_classification_loss()
         self._detection_loss = self._get_detection_loss()
         return self._get_total_loss()

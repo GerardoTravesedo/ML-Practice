@@ -55,6 +55,14 @@ learning_rate = tf.placeholder(tf.float32, name="LearningRate")
 
 
 def train_net(session, training, multitask_loss):
+    """
+    This function trains the rcnn network
+
+    :param session: tensorflow session to use to train the network
+    :param training: tensorflow operator to train the network (will be run using the session)
+    :param multitask_loss: tensorflow operator to get the result of the multitask loss. This info
+    will be logged to be able to analyze it later
+    """
     print "Starting training"
     training_start_time = time.time()
 
@@ -64,6 +72,8 @@ def train_net(session, training, multitask_loss):
     for epoch in range(0, EPOCHS):
         print "Epoch: " + str(epoch)
         # Training with all the PASCAL VOC records for each epoch
+        # We train with 1 image per batch and 64 rois per image. From those 64, we'll use a max of
+        # 16 foreground images. The rest will be background.
         training_reader = reader.DatasetReader(LIST_TRAINING_BATCH_FILES, 1, 64, 16)
         training_batch = training_reader.get_batch()
 
@@ -77,7 +87,9 @@ def train_net(session, training, multitask_loss):
                 learning_rate: learning_rate_manager.learning_rate
             })
 
+            # Logging information about the multitask loss to be able to analyze it later
             output_analyzer.write_error_to_file(ERROR_FILE, iteration, loss)
+            # Adding current error to learning rate manager so it can calculate when to reduce it
             learning_rate_manager.add_error(loss)
 
             iteration = iteration + 1
@@ -88,9 +100,16 @@ def train_net(session, training, multitask_loss):
 
 
 def test(session, prediction):
+    """
+    This function detects and classifies objects in the given images
+
+    :param session: tensorflow session to use to train the network
+    :param prediction: tensorflow operator to detect objects (will be run using the session)
+    """
     print "Starting prediction"
     prediction_start_time = time.time()
 
+    # It generates batches from the list of test files
     test_reader = reader.DatasetReader(LIST_TEST_BATCH_FILES, 1, 64, 16)
     test_batch = test_reader.get_batch()
 
@@ -100,8 +119,9 @@ def test(session, prediction):
             roi_input_batch: test_batch["rois"]
         })
 
+        # Logging information about the prediction to be able to analyze it later
         output_analyzer.write_predictions_to_file(
-            OUTPUT_FILE, test_batch["labels"], np.transpose(predicted_classes, axes=[1, 0, 2]))
+            OUTPUT_FILE, test_batch["gt_objects"], np.transpose(predicted_classes, axes=[1, 0, 2]))
         test_batch = test_reader.get_batch()
 
     print "Done predicting. It took", (time.time() - prediction_start_time) / 60, "minutes"

@@ -2,6 +2,14 @@ import xml.etree.ElementTree as ET
 
 
 def parse_xml(xml_file):
+    """
+    This function extracts information from a PASCAL VOC image annotation file
+
+    :param xml_file: path to the annotation file
+
+    :return: dictionary with the extracted information, which includes the bboxes of the different
+    objects in the image and their classes
+    """
     tree = ET.parse(xml_file)
     root = tree.getroot()
 
