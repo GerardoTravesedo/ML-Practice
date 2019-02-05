@@ -38,9 +38,15 @@ LIST_TEST_BATCH_FILES = \
 # Shape of this placeholder is generally (2, 600, 600, 3), but when the last batch in a file is
 # read, the batch size can be less than 2 (just one image left).
 # That's why we specify None
+# image_input_batch = tf.placeholder(
+#     tf.float32, shape=(None, CHANNEL_PIXELS, CHANNEL_PIXELS, NUMBER_CHANNELS),
+#     name="ImageInputBatch")
+
+# We are only using one image per batch in this version
 image_input_batch = tf.placeholder(
-    tf.float32, shape=(None, CHANNEL_PIXELS, CHANNEL_PIXELS, NUMBER_CHANNELS),
+    tf.float32, shape=(CHANNEL_PIXELS, CHANNEL_PIXELS, NUMBER_CHANNELS),
     name="ImageInputBatch")
+
 # Each RoI has 4 values (x, y, h, w)
 roi_input_batch = tf.placeholder(
     tf.float32, shape=(None, NUMBER_REGRESSION_FIELDS), name="RoiInputBatch")

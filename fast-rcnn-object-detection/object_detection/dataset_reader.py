@@ -80,8 +80,14 @@ class DatasetReader:
             ", final_index:", self.next_record + records_to_fetch, "}"
 
         self.next_record = self.next_record + self.number_images_in_batch
-        return {"images": images_batch, "rois": rois_batch, "class_labels": class_labels_batch,
-                "reg_target_labels": reg_target_labels_batch, "gt_objects": gt_objects_batch}
+
+        # Returning element at index 0 since we are only dealing with one image in this version
+        # This class is capable of managing more images per class
+        return {"images": images_batch[0],
+                "rois": rois_batch[0],
+                "class_labels": class_labels_batch[0],
+                "reg_target_labels": reg_target_labels_batch[0],
+                "gt_objects": gt_objects_batch[0]}
 
     def _find_rois_batch(self, data_batch):
         """
