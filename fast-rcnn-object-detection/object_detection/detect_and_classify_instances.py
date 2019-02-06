@@ -12,7 +12,7 @@ def detect_and_classify(
     :param rois_reg_targets: Regression targets for each roi for each class.
         Shape = (# rois, # classes - background, # reg fields = 4)
     :param max_output_size: maximum number of boxes to be selected by non max suppression
-    :param score_threshold: hreshold for deciding when to remove boxes based on score
+    :param score_threshold: threshold for deciding when to remove boxes based on score
     :param number_classes: number of classes used for classification (including background)
 
     :return: All instances of objects detected along with their classes
@@ -31,7 +31,7 @@ def detect_and_classify(
     # Generating tensor of class indices that will be included in the roi information
     class_indices = tf.reshape(tf.tile(tf.to_float(
         tf.range(1, number_classes)), multiples=[roi_class_scores_shape[0]]),
-        shape=[number_classes - 1, roi_class_scores_shape[0], 1])
+        shape=[roi_class_scores_shape[0], roi_class_scores_shape[1], 1])
     # Concat reg targets (we have one group per roi per class) with the corresponding
     # class scores and with the class index
     # There are 6 elements together now:

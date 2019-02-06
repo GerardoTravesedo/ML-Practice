@@ -12,7 +12,7 @@ class TestRoiTools(object):
         # BATCH 1 -> One image
 
         batch1 = target.get_batch()
-        assert batch1["images"].shape == (600, 600, 3)
+        assert batch1["images"].shape == (1, 600, 600, 3)
         assert batch1["rois"].shape == (64, 4)
         assert batch1["class_labels"].shape == (64, 21)
         assert batch1["reg_target_labels"].shape == (64, 4)
@@ -27,7 +27,7 @@ class TestRoiTools(object):
         # BATCH 2 -> One image
 
         batch2 = target.get_batch()
-        assert batch2["images"].shape == (600, 600, 3)
+        assert batch2["images"].shape == (1, 600, 600, 3)
         assert batch2["rois"].shape == (64, 4)
         assert batch2["class_labels"].shape == (64, 21)
         assert batch2["reg_target_labels"].shape == (64, 4)
@@ -47,7 +47,7 @@ class TestRoiTools(object):
         # BATCH 3 -> One image, change in file
 
         batch3 = target.get_batch()
-        assert batch3["images"].shape == (600, 600, 3)
+        assert batch3["images"].shape == (1, 600, 600, 3)
         assert batch3["rois"].shape == (64, 4)
         assert batch3["class_labels"].shape == (64, 21)
         # Checking that there are 59 background rois for the image

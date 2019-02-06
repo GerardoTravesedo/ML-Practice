@@ -83,7 +83,7 @@ class DatasetReader:
 
         # Returning element at index 0 since we are only dealing with one image in this version
         # This class is capable of managing more images per class
-        return {"images": images_batch[0],
+        return {"images": images_batch,
                 "rois": rois_batch[0],
                 "class_labels": class_labels_batch[0],
                 "reg_target_labels": reg_target_labels_batch[0],

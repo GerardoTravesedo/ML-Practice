@@ -28,7 +28,7 @@ def get_net(
     he_init = tf.contrib.layers.variance_scaling_initializer()
 
     # Base network including resnet and roi pooling layer
-    base_net = get_base_net(
+    base_net, _ = get_base_net(
         number_resnet_layers, number_hidden_nodes, image_input_batch, roi_input_batch, he_init)
 
     # Two separate branches for rois classification and regression (detection)
@@ -62,12 +62,14 @@ def get_base_net(
     :param he_init: he kernel init
 
     :return: last operation to be used before connecting the classification and detection branches
+    and roi polling operation
     """
     # Resnet network
     resnet = reduced_resnet_builder.ReducedResnetBuilder(he_init) \
         .build_resnet(image_input_batch, number_resnet_layers)
 
-    pooling_layer = get_roi_pooling_layer(roi_input_batch, resnet)
+    # Forcing it to use just ONE image in this version of the software
+    pooling_layer = get_roi_pooling_layer(roi_input_batch, resnet[0])
 
     # Reshaping output so we can feed it to fully connected layers (everything in a long vector)
     pool2_flat = tf.reshape(pooling_layer, [-1, 7 * 7 * 64])
@@ -75,8 +77,10 @@ def get_base_net(
     fc_layer_1 = tf.layers.dense(
         pool2_flat, number_hidden_nodes, activation=tf.nn.leaky_relu, kernel_initializer=he_init)
 
-    return tf.layers.dense(
+    fc_layer_2 = tf.layers.dense(
         fc_layer_1, number_hidden_nodes, activation=tf.nn.leaky_relu, kernel_initializer=he_init)
+
+    return fc_layer_2, pooling_layer
 
 
 def get_roi_pooling_layer(roi_input_batch, resnet_output):

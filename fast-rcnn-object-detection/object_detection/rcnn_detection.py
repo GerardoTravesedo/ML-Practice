@@ -17,6 +17,7 @@ NUMBER_HIDDEN_NODES = 800
 # 20 different types of objects + background
 NUMBER_CLASSES = 21
 NUMBER_REGRESSION_FIELDS = 4
+NUMBER_ROI_BBOX_FIELDS = 4
 
 LOGS_PATH = '/tmp/tensorflow_logs/rcnn-detector/'
 
@@ -44,12 +45,12 @@ LIST_TEST_BATCH_FILES = \
 
 # We are only using one image per batch in this version
 image_input_batch = tf.placeholder(
-    tf.float32, shape=(CHANNEL_PIXELS, CHANNEL_PIXELS, NUMBER_CHANNELS),
+    tf.float32, shape=(1, CHANNEL_PIXELS, CHANNEL_PIXELS, NUMBER_CHANNELS),
     name="ImageInputBatch")
 
 # Each RoI has 4 values (x, y, h, w)
 roi_input_batch = tf.placeholder(
-    tf.float32, shape=(None, NUMBER_REGRESSION_FIELDS), name="RoiInputBatch")
+    tf.float32, shape=(None, NUMBER_ROI_BBOX_FIELDS), name="RoiInputBatch")
 
 class_label_batch = tf.placeholder(
     tf.int32, shape=(None, NUMBER_CLASSES), name="ClassLabelsBatch")
@@ -134,11 +135,12 @@ def test(session, prediction):
 
 
 with tf.Session() as sess:
-    sess.run(tf.global_variables_initializer())
-
     multitask_loss_op, training_op, prediction_op = rcnn_net.get_net(
         NUMBER_CLASSES, NUMBER_REGRESSION_FIELDS, NUMBER_RESNET_LAYERS, NUMBER_HIDDEN_NODES,
         image_input_batch, roi_input_batch, class_label_batch, detection_label_batch, learning_rate)
+
+    # Initialization has to happen after defining the graph
+    sess.run(tf.global_variables_initializer())
 
     # In order to be able to see the graph, we need to add this line after the graph is defined
     tf.summary.FileWriter(LOGS_PATH, graph=tf.get_default_graph())
