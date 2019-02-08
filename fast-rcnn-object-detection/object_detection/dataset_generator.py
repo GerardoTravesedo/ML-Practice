@@ -76,7 +76,7 @@ def get_image_data_training(image_path, annotation_path):
 
     # Adding rois to the dictionary
     image_info["rois"], image_info["rois_background"] = \
-        roi_tools.find_rois_complete(resized_image_in_pixels, gt_boxes, 4, 1000)
+        roi_tools.find_rois_complete(resized_image_in_pixels, gt_boxes, 4, 500)
 
     if len(image_info["rois"]) == 0:
         print("There are no ROIs for image: " + image_path + ". Generating our own ROIs")

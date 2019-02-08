@@ -28,7 +28,7 @@ class TestDatasetGenerator(object):
         assert "rois" in result
         assert 5 == len(result["rois"])
         assert "rois_background" in result
-        assert 1000 == len(result["rois_background"])
+        assert 500 == len(result["rois_background"])
 
         one_roi = result["rois"][0]
         assert 21 == len(one_roi["class"])
