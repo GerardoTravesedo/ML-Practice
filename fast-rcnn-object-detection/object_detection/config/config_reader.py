@@ -15,49 +15,63 @@ class ConfigReader:
         self._config = config
 
     def get_model_load(self):
-        return self._get_required_property(MODEL_SECTION, "model.load")
+        return self._config.getboolean(MODEL_SECTION, "model.load")
 
     def get_model_save(self):
-        return self._get_required_property(MODEL_SECTION, "model.save")
+        return self._config.getboolean(MODEL_SECTION, "model.save")
+
+    def get_model_path(self):
+        return self._config.get(MODEL_SECTION, "model.path")
 
     def get_number_epochs(self):
-        return self._get_required_property(NET_SECTION, "number.epochs")
+        return self._config.getint(NET_SECTION, "number.epochs")
+
+    def get_number_images_batch(self):
+        return self._config.getint(NET_SECTION, "number.images.batch")
+
+    def get_number_rois_per_image_batch(self):
+        return self._config.getint(NET_SECTION, "number.rois.per.image.batch")
+
+    def get_number_max_foreground_rois_per_image_batch(self):
+        return self._config.getint(
+            NET_SECTION, "number.max.foreground.rois.per.image.batch")
 
     def get_number_image_channels(self):
-        return self._get_required_property(NET_SECTION, "number.image.channels")
+        return self._config.getint(NET_SECTION, "number.image.channels")
 
     def get_number_image_pixels(self):
-        return self._get_required_property(NET_SECTION, "number.image.pixels")
+        return self._config.getint(NET_SECTION, "number.image.pixels")
 
     def get_number_resnet_layers(self):
-        return self._get_required_property(NET_SECTION, "number.resnet.layers")
+        return self._config.getint(NET_SECTION, "number.resnet.layers")
 
     def get_number_hidden_nodes(self):
-        return self._get_required_property(NET_SECTION, "number.hidden.nodes")
+        return self._config.getint(NET_SECTION, "number.hidden.nodes")
 
     def get_number_classes(self):
-        return self._get_required_property(NET_SECTION, "number.classes")
+        return self._config.getint(NET_SECTION, "number.classes")
 
     def get_number_regression_fields(self):
-        return self._get_required_property(NET_SECTION, "number.regression.fields")
+        return self._config.getint(NET_SECTION, "number.regression.fields")
 
     def get_roi_bbox_fields(self):
-        return self._get_required_property(NET_SECTION, "number.roi.bbox.fields")
+        return self._config.getint(NET_SECTION, "number.roi.bbox.fields")
+
+    def get_learning_rate_initial_value(self):
+        return self._config.getfloat(NET_SECTION, "learning.rate.initial.value")
+
+    def get_learning_rate_manager_threshold(self):
+        return self._config.getfloat(NET_SECTION, "learning.rate.manager.threshold")
+
+    def get_learning_rate_manager_steps(self):
+        return self._config.getint(NET_SECTION, "learning.rate.manager.steps")
 
     def get_logs_path(self):
-        return self._get_required_property(OUTPUT_SECTION, "logs.path")
+        return self._config.get(OUTPUT_SECTION, "logs.path")
 
     def get_test_output_file(self):
-        return self._get_required_property(OUTPUT_SECTION, "test.output.file")
+        return self._config.get(OUTPUT_SECTION, "test.output.file")
 
     def get_training_error_file(self):
-        return self._get_required_property(OUTPUT_SECTION, "training.error.file")
-
-    def _get_required_property(self, section, property):
-        property_value = self._config.get(NET_SECTION, "number.epochs")
-
-        if not property_value:
-            raise Exception("Missing property {0} in section {1}".format(property, section))
-
-        return property_value
+        return self._config.get(OUTPUT_SECTION, "training.error.file")
 

@@ -7,14 +7,6 @@ import dataset_reader as ds_reader
 import rcnn_net
 import config.config_reader as conf_reader
 
-DIR_BATCH_FILES = "./dataset-rcnn/training/"
-
-# TODO: Change the names once we generate the files
-LIST_TRAINING_BATCH_FILES = \
-    ["data_batch_1", "data_batch_2", "data_batch_3", "data_batch_4", "data_batch_5"]
-LIST_TEST_BATCH_FILES = \
-    ["data_batch_1", "data_batch_2", "data_batch_3", "data_batch_4", "data_batch_5"]
-
 
 class RCNNDetection:
 
@@ -65,7 +57,7 @@ class RCNNDetection:
             self._detection_label_batch,
             self._learning_rate)
 
-    def train_net(self, training, multitask_loss):
+    def train_net(self, training, multitask_loss, training_batch_files):
         """
         This function trains the rcnn network
 
@@ -79,21 +71,28 @@ class RCNNDetection:
         # If this model was already partially training before, load it from disk
         if self._config.get_model_load():
             # Restore variables from disk.
-            saver.restore(self._sess, "/tmp/fast-rcnn-model.ckpt")
+            saver.restore(self._sess, self._config.get_model_path())
             print("Model restored.")
 
         print("Starting training")
         training_start_time = time.time()
 
         iteration = 0
-        learning_rate_manager = rm.LearningRateManager(0.001, 0.6, 80)
+        learning_rate_manager = rm.LearningRateManager(
+            self._config.get_learning_rate_initial_value(),
+            self._config.get_learning_rate_manager_threshold(),
+            self._config.get_learning_rate_manager_steps())
 
         for epoch in range(0, self._config.get_number_epochs()):
             print("Epoch: {0}".format(str(epoch)))
             # Training with all the PASCAL VOC records for each epoch
             # We train with 1 image per batch and 64 rois per image. From those 64, we'll use a max
             # of 16 foreground images. The rest will be background.
-            training_reader = ds_reader.DatasetReader(LIST_TRAINING_BATCH_FILES, 1, 64, 16)
+            training_reader = ds_reader.DatasetReader(
+                training_batch_files,
+                self._config.get_number_images_batch(),
+                self._config.get_number_rois_per_image_batch(),
+                self._config.get_number_max_foreground_rois_per_image_batch())
             training_batch = training_reader.get_batch()
 
             # Empty batch means we are done processing all images and rois for this epoch
@@ -118,12 +117,12 @@ class RCNNDetection:
 
             # Save model variables to disk
             if self._config.get_model_save():
-                save_path = saver.save(self._sess, "/tmp/fast-rcnn-model.ckpt")
+                save_path = saver.save(self._sess, self._config.get_model_path())
                 print("Model saved in path: {0} for epoch {1}".format(save_path, epoch))
 
         print("Done training. It took {0} minutes".format((time.time() - training_start_time) / 60))
 
-    def test(self, prediction):
+    def test(self, prediction, test_batch_files):
         """
         This function detects and classifies objects in the given images
 
@@ -133,7 +132,11 @@ class RCNNDetection:
         prediction_start_time = time.time()
 
         # It generates batches from the list of test files
-        test_reader = ds_reader.DatasetReader(LIST_TEST_BATCH_FILES, 1, 64, 16)
+        test_reader = ds_reader.DatasetReader(
+            test_batch_files,
+            self._config.get_number_images_batch(),
+            self._config.get_number_rois_per_image_batch(),
+            self._config.get_number_max_foreground_rois_per_image_batch())
         test_batch = test_reader.get_batch()
 
         while test_batch != {}:
@@ -152,7 +155,7 @@ class RCNNDetection:
               .format((time.time() - prediction_start_time) / 60))
 
 
-def run(properties_path):
+def run(properties_path, training_batch_files, test_batch_files):
     with tf.Session() as sess:
         config = conf_reader.ConfigReader(properties_path)
         rcnn_detection = RCNNDetection(sess, config)
@@ -165,8 +168,8 @@ def run(properties_path):
         # In order to be able to see the graph, we need to add this line after the graph is defined
         tf.summary.FileWriter(config.get_logs_path(), graph=tf.get_default_graph())
 
-        rcnn_detection.train_net(training_op, multitask_loss_op)
-        rcnn_detection.test(prediction_op)
+        rcnn_detection.train_net(training_op, multitask_loss_op, training_batch_files)
+        rcnn_detection.test(prediction_op, test_batch_files)
 
         print("Run the command line:\n"
               "--> tensorboard --logdir=/tmp/tensorflow_logs "
