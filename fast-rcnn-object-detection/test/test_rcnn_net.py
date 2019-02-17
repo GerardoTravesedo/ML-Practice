@@ -1,8 +1,9 @@
-import tensorflow as tf
 import numpy as np
-import object_detection.rcnn_net as rcnn_net
-import dataset_reader as reader
+import tensorflow as tf
+
 import learning_rate_manager as rm
+import detection.rcnn_net as rcnn_net
+from dataset import dataset_reader as reader
 
 
 class TestRoiPoolingLayer(tf.test.TestCase):

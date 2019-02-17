@@ -1,6 +1,7 @@
-import tensorflow as tf
 import numpy as np
-import object_detection.detect_and_classify_instances as dc
+import tensorflow as tf
+
+import detection.detect_and_classify_instances as dc
 
 
 class TestDetectAndClassifyInstances(tf.test.TestCase):

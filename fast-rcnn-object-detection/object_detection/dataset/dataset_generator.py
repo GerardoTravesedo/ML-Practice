@@ -1,9 +1,11 @@
-import image_tools
-import xml_parser
-import roi_tools
-from os import listdir
 import shutil
+from os import listdir
+
 import numpy as np
+
+import roi_tools
+import xml_parser
+from dataset import image_tools
 
 INPUT_FOLDER = "dataset/VOCdevkit/VOC2012/"
 OUTPUT_FOLDER = "dataset-rcnn/"

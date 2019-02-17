@@ -1,7 +1,8 @@
 from multiprocessing import Pool
-from os import listdir
 from os import getpid
-import dataset_generator
+from os import listdir
+
+from dataset import dataset_generator
 
 INPUT_FOLDER = "../dataset-training-test/training/"
 

@@ -1,10 +1,10 @@
-from multiprocessing import Pool
-from os import listdir
-from os import getpid
-import dataset_generator
-import pickle
 import math
+import pickle
+from multiprocessing import Pool
+from os import getpid
+from os import listdir
 
+import dataset_generator
 
 TRAINING_INPUT_FOLDER = "../dataset-training-test/training/"
 

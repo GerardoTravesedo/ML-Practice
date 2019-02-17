@@ -1,5 +1,6 @@
-import object_detection.dataset_generator as dataset_generator
 import numpy as np
+
+import dataset.dataset_generator as dataset_generator
 
 
 class TestDatasetGenerator(object):

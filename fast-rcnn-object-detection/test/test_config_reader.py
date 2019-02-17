@@ -1,4 +1,4 @@
-import object_detection.config.config_reader as config_reader
+import config.config_reader as config_reader
 import pytest
 
 

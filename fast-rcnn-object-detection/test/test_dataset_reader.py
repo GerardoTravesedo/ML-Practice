@@ -1,5 +1,6 @@
-import object_detection.dataset_reader as dataset_reader
 import numpy as np
+
+import dataset.dataset_reader as dataset_reader
 
 
 class TestRoiTools(object):

@@ -1,4 +1,4 @@
-import object_detection.xml_parser as xml_parser
+import dataset.xml_parser as xml_parser
 
 
 class TestXmlParser(object):

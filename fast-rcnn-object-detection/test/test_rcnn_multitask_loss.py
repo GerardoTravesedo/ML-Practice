@@ -1,6 +1,7 @@
-import tensorflow as tf
 import numpy as np
-import object_detection.rcnn_multitask_loss as mloss
+import tensorflow as tf
+
+import detection.rcnn_multitask_loss as mloss
 
 
 class TestRcnnMultitaskLoss(tf.test.TestCase):

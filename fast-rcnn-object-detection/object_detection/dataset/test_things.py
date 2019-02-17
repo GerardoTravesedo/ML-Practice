@@ -1,9 +1,6 @@
 import math
 
-import dataset_generator
-import image_tools
-import roi_tools
-import xml_parser
+from dataset import dataset_generator, xml_parser, roi_tools, image_tools
 
 INPUT_FOLDER = "dataset-training-test/training/"
 

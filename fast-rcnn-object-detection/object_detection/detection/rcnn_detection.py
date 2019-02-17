@@ -1,11 +1,13 @@
-import output_analyzer
-import tensorflow as tf
 import time
-import learning_rate_manager as rm
+
 import numpy as np
-import dataset_reader as ds_reader
-import rcnn_net
+import tensorflow as tf
+
 import config.config_reader as conf_reader
+import learning_rate_manager as rm
+import output_analyzer
+import rcnn_net
+from dataset import dataset_reader as ds_reader
 
 
 class RCNNDetection:

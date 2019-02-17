@@ -1,6 +1,7 @@
-import tensorflow as tf
 import numpy as np
-import object_detection.roi_pooling_layer as pooling
+import tensorflow as tf
+
+import detection.roi_pooling_layer as pooling
 
 # Shape (4, 5, 2) -> subimage
 FEATURE_MAP_TEST = np.array([[[122, 2], [2, 3], [3, 400], [4, 5], [22, 23]],

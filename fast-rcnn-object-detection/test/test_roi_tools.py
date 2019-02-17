@@ -1,6 +1,7 @@
-import object_detection.roi_tools as roi_tools
-import object_detection.image_tools as image_tools
 import numpy as np
+
+import dataset.image_tools as image_tools
+import dataset.roi_tools as roi_tools
 
 
 class TestRoiTools(object):
