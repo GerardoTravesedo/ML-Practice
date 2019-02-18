@@ -14,6 +14,12 @@ class ConfigReader:
         config.read(prop_file)
         self._config = config
 
+    def get_model_train(self):
+        return self._config.getboolean(MODEL_SECTION, "model.train")
+
+    def get_model_test(self):
+        return self._config.getboolean(MODEL_SECTION, "model.test")
+
     def get_model_load(self):
         return self._config.getboolean(MODEL_SECTION, "model.load")
 

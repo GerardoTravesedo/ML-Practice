@@ -13,6 +13,10 @@ from dataset import dataset_reader as ds_reader
 class RCNNDetection:
 
     def __init__(self, session, config):
+        """
+        :param session: tensorflow session to run operations
+        :param config: rcnn configuration file path
+        """
         # Shape of this placeholder is generally (2, 600, 600, 3), but when the last batch in a
         # file is read, the batch size can be less than 2 (just one image left).
         # That's why we specify None
@@ -23,6 +27,7 @@ class RCNNDetection:
         self._config = config
 
         # We are only using one image per batch in this version
+        # Shape = (1, 600, 600, 3)
         self._image_input_batch = tf.placeholder(
             tf.float32, shape=
             (1, config.get_number_image_pixels(),
@@ -35,10 +40,12 @@ class RCNNDetection:
             tf.float32, shape=(None, config.get_roi_bbox_fields()),
             name="RoiInputBatch")
 
+        # Class labels batch with shape = (# rois, # classes)
         self._class_label_batch = tf.placeholder(
             tf.int32, shape=(None, config.get_number_classes()),
             name="ClassLabelsBatch")
 
+        # Detections labels batch with shape = (# rois, 4)
         self._detection_label_batch = tf.placeholder(
             tf.int32, shape=(None, config.get_number_regression_fields()),
             name="DetectionLabelsBatch")
@@ -48,6 +55,9 @@ class RCNNDetection:
         self._sess = session
 
     def get_net(self):
+        """
+        :return: tensorflow operators to trigger training and testing
+        """
         return rcnn_net.get_net(
             self._config.get_number_classes,
             self._config.get_number_regression_fields,
@@ -66,6 +76,7 @@ class RCNNDetection:
         :param training: tensorflow operator to train the network (will be run using the session)
         :param multitask_loss: tensorflow operator to get the result of the multitask loss. This info
         will be logged to be able to analyze it later
+        :param training_batch_files: list of files to use to train the net
         """
         # Used to save and restore the model variables
         saver = tf.train.Saver()
@@ -129,6 +140,7 @@ class RCNNDetection:
         This function detects and classifies objects in the given images
 
         :param prediction: tensorflow operator to detect objects (will be run using the session)
+        :param test_batch_files: list of files to use to test the net
         """
         print("Starting prediction")
         prediction_start_time = time.time()
@@ -158,8 +170,29 @@ class RCNNDetection:
 
 
 def run(properties_path, training_batch_files, test_batch_files):
+    """
+    Trains and tests the RCNN network
+
+    :param properties_path: path to rcnn properties file
+    :param training_batch_files: list of files to use to train
+    :param test_batch_files: list of files to use to test
+    """
     with tf.Session() as sess:
         config = conf_reader.ConfigReader(properties_path)
+
+        should_train = config.get_model_train()
+        should_test = config.get_model_test()
+        should_load_model = config.get_model_load()
+        should_save_model = config.get_model_save()
+
+        if should_test and not should_load_model and not should_train:
+            raise Exception(
+                "Model cannot be tested without training the model or loading an existing one")
+
+        if should_save_model and not should_train:
+            raise Exception(
+                "Model cannot be saved since it won't be modified")
+
         rcnn_detection = RCNNDetection(sess, config)
 
         multitask_loss_op, training_op, prediction_op = rcnn_detection.get_net()
@@ -170,8 +203,11 @@ def run(properties_path, training_batch_files, test_batch_files):
         # In order to be able to see the graph, we need to add this line after the graph is defined
         tf.summary.FileWriter(config.get_logs_path(), graph=tf.get_default_graph())
 
-        rcnn_detection.train_net(training_op, multitask_loss_op, training_batch_files)
-        rcnn_detection.test(prediction_op, test_batch_files)
+        if should_train:
+            rcnn_detection.train_net(training_op, multitask_loss_op, training_batch_files)
+
+        if should_test:
+            rcnn_detection.test(prediction_op, test_batch_files)
 
         print("Run the command line:\n"
               "--> tensorboard --logdir=/tmp/tensorflow_logs "

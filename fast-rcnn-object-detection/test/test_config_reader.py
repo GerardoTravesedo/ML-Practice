@@ -8,6 +8,14 @@ class TestConfigReader(object):
     def config_reader_object(self):
         return config_reader.ConfigReader("test/data/test_config.ini")
 
+    def test_get_model_train(self, config_reader_object):
+        result = config_reader_object.get_model_train()
+        assert result
+
+    def test_get_model_test(self, config_reader_object):
+        result = config_reader_object.get_model_test()
+        assert not result
+
     def test_get_model_load(self, config_reader_object):
         result = config_reader_object.get_model_load()
         assert not result
