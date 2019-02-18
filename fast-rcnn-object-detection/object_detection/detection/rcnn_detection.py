@@ -132,6 +132,8 @@ class RCNNDetection:
             if self._config.get_model_save():
                 save_path = saver.save(self._sess, self._config.get_model_path())
                 print("Model saved in path: {0} for epoch {1}".format(save_path, epoch))
+                print("Initial learning rate to use when training in the future: {0}"
+                      .format(str(learning_rate_manager.learning_rate)))
 
         print("Done training. It took {0} minutes".format((time.time() - training_start_time) / 60))
 
@@ -142,6 +144,14 @@ class RCNNDetection:
         :param prediction: tensorflow operator to detect objects (will be run using the session)
         :param test_batch_files: list of files to use to test the net
         """
+        # If this model was already partially trained before, load it from disk
+        # If model was trained in this same execution, the load already happened, so we
+        # can skip it here
+        if not self._config.config.get_model_train() and self._config.get_model_load():
+            # Restore variables from disk.
+            tf.train.Saver().restore(self._sess, self._config.get_model_path())
+            print("Model restored.")
+
         print("Starting prediction")
         prediction_start_time = time.time()
 

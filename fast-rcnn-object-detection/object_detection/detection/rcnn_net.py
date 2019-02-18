@@ -76,12 +76,18 @@ def get_base_net(
     pool2_flat = tf.reshape(pooling_layer, [-1, 7 * 7 * 64])
 
     fc_layer_1 = tf.layers.dense(
-        pool2_flat, number_hidden_nodes, activation=tf.nn.leaky_relu, kernel_initializer=he_init)
+        pool2_flat, number_hidden_nodes, activation=tf.nn.leaky_relu, kernel_initializer=he_init,
+        name="BaseNet-FC1")
+
+    batch_norm_1 = tf.layers.batch_normalization(fc_layer_1, name="BaseNet-Batch1")
 
     fc_layer_2 = tf.layers.dense(
-        fc_layer_1, number_hidden_nodes, activation=tf.nn.leaky_relu, kernel_initializer=he_init)
+        batch_norm_1, number_hidden_nodes, activation=tf.nn.leaky_relu, kernel_initializer=he_init,
+        name="BaseNet-FC2")
 
-    return fc_layer_2, pooling_layer
+    batch_norm_2 = tf.layers.batch_normalization(fc_layer_2, name="BaseNet-Batch2")
+
+    return batch_norm_2, pooling_layer
 
 
 def get_roi_pooling_layer(roi_input_batch, resnet_output):
@@ -133,9 +139,12 @@ def get_detection_branch(number_classes, number_regression_fields, previous_outp
     """
     detection_fc = tf.layers.dense(
         previous_output, number_classes, activation=tf.nn.leaky_relu, kernel_initializer=he_init)
+
+    batch_norm_1 = tf.layers.batch_normalization(detection_fc, name="Detection-Batch1")
+
     # The output has to be 4 regression numbers for each class that is not background
     detection_regressor = tf.layers.dense(
-        detection_fc, number_regression_fields * (number_classes - 1),
+        batch_norm_1, number_regression_fields * (number_classes - 1),
         activation=tf.nn.leaky_relu, kernel_initializer=he_init, name="DetectionFields")
     # So far we have all the regression targets together in a vector for all classes. We need to
     # convert that into a matrix where rows represents classes and columns represent the predicted
