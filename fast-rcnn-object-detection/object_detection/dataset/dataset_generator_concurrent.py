@@ -1,39 +1,62 @@
 import math
 import pickle
 from multiprocessing import Pool
-from os import getpid
 from os import listdir
 
 import dataset_generator
 
 TRAINING_INPUT_FOLDER = "../dataset-training-test/training/"
 
-# TODO: We have to generate ROIS in a different way for test dataset
 TEST_INPUT_FOLDER = "../dataset-training-test/test/"
 
-TRAINING_IMAGE_FOLDER = TRAINING_INPUT_FOLDER + "/image/"
-TRAINING_ANNOTATION_FOLDER = TRAINING_INPUT_FOLDER + "/annotation/"
+TRAINING_IMAGE_FOLDER = TRAINING_INPUT_FOLDER + "image/"
+TRAINING_ANNOTATION_FOLDER = TRAINING_INPUT_FOLDER + "annotation/"
 
-TRAINING_OUTPUT_FOLDER = "../dataset-rcnn/training/"
+TRAINING_OUTPUT_FOLDER = "../dataset-rcnn/training-2/"
 
-NUMBER_THREADS = 2
+NUMBER_THREADS = 10
+NUMBER_OUTPUT_FILES = 100
 
 
-def task(paths, output_folder):
+def task(paths, output_folder, task_id):
     """
     Subprocess task that finds the rcnn input data for each pair (image, annotation) and writes
     it into a file in pickle format
     """
-    # Generate the rcnn input data for each image
-    data = [dataset_generator.get_image_data_training(path[0], path[1]) for path in paths]
+    # print("Processing task {}".format(task_id))
 
-    output_file = "{}rcnn_dataset_{}".format(output_folder, getpid())
+    try:
+        # Generate the rcnn input data for each image
+        data = []
+        for path in paths:
+            print("Processing image {} in task {}".format(path[0], task_id))
+            data.append(dataset_generator.get_image_data_training(path[0], path[1]))
+            print("Done processing image {} in task {}".format(path[0], task_id))
 
-    # Write the entire list of image data into a pickle file
-    with open(output_file, 'wb') as f:
-        pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+        output_file = "{}rcnn_dataset_{}".format(output_folder, task_id)
 
-    print("Thread {} is done. Number of images processed: {}".format(getpid(), len(data)))
+        # Write the entire list of image data into a pickle file
+        with open(output_file, 'wb') as f:
+            print ("Ready to write result of task {}".format(task_id))
+            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        print("Task {} is done. Number of images processed: {}".format(task_id, len(data)))
+    except Exception:
+        print("There was an exception while processing task {}".format(task_id))
+
+
+def verify_output_files(output_files_folder):
+    """
+    Shows the number of images that are part of each batch output file. We use this function
+    in order to detect incorrect behavior when generating output files
+
+    :param output_files_folder: path to folder that contains the output batch files
+    """
+    files = listdir(output_files_folder)
+    for output_file in files:
+        with open(TRAINING_OUTPUT_FOLDER + output_file, 'rb') as f:
+            data = pickle.load(f)
+            print("Number of images in file {} is {}".format(output_file, len(data)))
 
 
 def main(image_folder, annotation_folder, output_folder):
@@ -49,35 +72,78 @@ def main(image_folder, annotation_folder, output_folder):
     # Creating pool of subprocesses
     pool = Pool(processes=NUMBER_THREADS)
 
-    # We get the number of images to calculate how many will be processed by each thread
     images = listdir(image_folder)
     number_images = len(images)
-    images_per_thread = math.ceil(number_images / float(NUMBER_THREADS))
-    print("Each thread will process a max of {} images".format(images_per_thread))
+    print("Number of images to process {}".format(number_images))
+
+    annotations = listdir(annotation_folder)
+    number_annotations = len(annotations)
+    print("Number of annotations to process {}".format(number_annotations))
+
+    images_per_file = int(math.ceil(number_images / float(NUMBER_OUTPUT_FILES)))
+    print("Each file will have a max of {} images".format(images_per_file))
+
+    # Gets list of output batch files that were already generated
+    already_generated_files = listdir(output_folder)
+    # Gets the indices of the batch output files that were generated in previous executions
+    # For example: [output_3, output_5] -> [3, 5]
+    already_generated_indices = \
+        [int(existing_file.split("_")[2]) for existing_file in already_generated_files]
+    already_generated_indices.sort()
+    print("Already generated file: {}".format(str(already_generated_indices)))
+    # Pointer to the next batch that was already processed so we can use it later to know if the
+    # batch to generate is already there and we can skip it
+    next_batch_already_processed = 0
+    print("Number of already generated output files: {}".format(len(already_generated_indices)))
 
     # Keeping track of the images that are grouped together so far. Once its length gets to
     # images_per_thread we can submit the task
     images_annotations_group = []
+    task_counter = 0
+
+    file_annotation_pairs = zip(images, annotations)
 
     # Generate rcnn input data for each combination of image and annotation
-    for file_pair in zip(images, listdir(annotation_folder)):
-        # Finding paths to image and annotation
-        image_path = image_folder + file_pair[0]
-        annotation_path = annotation_folder + file_pair[1]
-        # Adding them to the current group as a tuple (image_path, annotation_path)
-        images_annotations_group.append((image_path, annotation_path))
-        # If current group is complete
-        if len(images_annotations_group) == images_per_thread:
-            print("Submitting task with {} images".format(images_per_thread))
-            # Submit task to thread
-            pool.apply_async(task, (images_annotations_group, output_folder))
-            # Reinitialize the group of paths
-            images_annotations_group = []
+    for output_file_index in range(0, NUMBER_OUTPUT_FILES):
+        if not already_generated_indices \
+            or next_batch_already_processed >= len(already_generated_indices) \
+                or output_file_index != already_generated_indices[next_batch_already_processed]:
+            print("Output file with id {} was NOT generated in previously"
+                  .format(output_file_index))
 
-    # Submitting task for last group in case it didn't get to images_per_thread
-    if len(images_annotations_group) != 0:
-        print("Submitting task with {} images".format(len(images_annotations_group)))
-        pool.apply_async(task, (images_annotations_group, output_folder))
+            # Finding the range of images that fall under the current batch
+            # For example, if current batch is 2 and the # of images per batch is 50, then the
+            # range will be [2 * 50, 2 * 50 + 50] = [100, 150]
+            first_file_index = output_file_index * images_per_file
+
+            last_file_index = output_file_index * images_per_file + images_per_file
+            # Checking for the case in which the last batch has less than the specific number
+            # of files per batch
+            last_file_index = \
+                last_file_index if last_file_index <= len(file_annotation_pairs) \
+                else len(file_annotation_pairs) - 1
+
+            print("Generating output file for images from {} to {}"
+                  .format(first_file_index, last_file_index - 1))
+            files_current_batch = file_annotation_pairs[first_file_index:last_file_index]
+
+            for file_pair in files_current_batch:
+                image_path = image_folder + file_pair[0]
+                annotation_path = annotation_folder + file_pair[1]
+
+                # Adding them to the current group as a tuple (image_path, annotation_path)
+                # print("Image/Annotation pair: {} - {}".format(image_path, annotation_path))
+                images_annotations_group.append((image_path, annotation_path))
+
+            print("Submitting task with {} images and id {}".format(
+                len(images_annotations_group), task_counter))
+            pool.apply_async(task, (images_annotations_group, output_folder, task_counter))
+            images_annotations_group = []
+        else:
+            print("Output file already generated with id {}".format(output_file_index))
+            next_batch_already_processed += 1
+
+        task_counter += 1
 
     print("Done submitting all tasks to threads")
 
@@ -85,7 +151,8 @@ def main(image_folder, annotation_folder, output_folder):
     pool.join()
 
 if __name__ == '__main__':
-    training_image_folder = "../test/data/test-batch-reader-dataset/images/"
-    training_annotation_folder = "../test/data/test-batch-reader-dataset/annotations/"
-    training_output_folder = "../test/data/test-batch-reader-dataset/"
-    main(training_image_folder, training_annotation_folder, training_output_folder)
+    # training_image_folder = "../test/data/test-batch-reader-dataset/images/"
+    # training_annotation_folder = "../test/data/test-batch-reader-dataset/annotations/"
+    # training_output_folder = "../test/data/test-batch-reader-dataset/"
+    main(TRAINING_IMAGE_FOLDER, TRAINING_ANNOTATION_FOLDER, TRAINING_OUTPUT_FOLDER)
+    #verify_output_files(TRAINING_OUTPUT_FOLDER)
