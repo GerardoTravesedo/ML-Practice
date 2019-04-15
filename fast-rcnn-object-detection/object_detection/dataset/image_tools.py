@@ -1,4 +1,5 @@
 import cv2
+import random
 
 
 def image_to_pixels(image):
@@ -35,22 +36,37 @@ def show_image_from_pixels(image):
     cv2.destroyAllWindows()
 
 
-def show_image_with_bboxes(image, bboxes):
+def generate_image_with_bboxes(image, image_name, roi_bboxes, gt_bboxes, output_folder):
     """
+    Draws foreground rois and ground truth box on the original image and writes the image to the
+    output folder
+
     :param
         image: pixels representing the image (BGR).
-        bboxes: list([x, y, w, h)] representing the top-left corner of the box along with the
+        image_name: name that it will give to output image it generates
+        roi_bboxes: list([x, y, w, h)] representing the top-left corner of the box along with the
         width and height
+        gt_bboxes: list([x, y, w, h)] representing the top-left corner of the box along with the
+        width and height
+        output_folder: folder where all the generated images will be written
     """
-    color = (0, 255, 0)
-    thickness = 2
-
-    for bbox in bboxes:
-        top_left_pixel = (bbox["x"], bbox["y"])
-        bottom_right_pixel = (bbox["x"] + bbox["w"], bbox["y"] + bbox["h"])
+    def draw_bbox(box, color):
+        top_left_pixel = (box[0], box[1])
+        bottom_right_pixel = (box[0] + box[2], box[1] + box[3])
         cv2.rectangle(image, top_left_pixel, bottom_right_pixel, color, thickness)
 
-    cv2.imshow("Image", image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    gt_bbox_color = (0, 255, 0)
+    thickness = 2
+
+    for bbox in roi_bboxes:
+        red = random.choice(range(256))
+        green = random.choice(range(256))
+        blue = random.choice(range(256))
+        draw_bbox(bbox, (red, green, blue))
+
+    for bbox in gt_bboxes:
+        draw_bbox(bbox, gt_bbox_color)
+
+    cv2.imwrite(output_folder + image_name, image)
+
 

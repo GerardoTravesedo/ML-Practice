@@ -32,3 +32,22 @@ def parse_xml(xml_file):
         objects.append(xml_info)
 
     return objects
+
+
+def contains_valid_classes(xml_file, filter_classes):
+    """
+    This function indicates if a given image annotation contains only valid classes
+
+    :param xml_file: path to the annotation file
+    :param filter_classes: list with valid classes
+
+    :return: true if the annotation only contains objects of valid classes
+    """
+    tree = ET.parse(xml_file)
+    root = tree.getroot()
+
+    for object in root.findall("object"):
+        if object.find("name").text not in filter_classes:
+            return False
+
+    return True

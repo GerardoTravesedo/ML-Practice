@@ -29,6 +29,7 @@ def detect_and_classify(
     reshaped_class_scores = tf.reshape(
         no_background_class, shape=[roi_class_scores_shape[0], roi_class_scores_shape[1], 1])
     # Generating tensor of class indices that will be included in the roi information
+    # This generates a tensor with content [[1], [2], .., [20]]
     class_indices = tf.reshape(tf.tile(tf.to_float(
         tf.range(1, number_classes)), multiples=[roi_class_scores_shape[0]]),
         shape=[roi_class_scores_shape[0], roi_class_scores_shape[1], 1])

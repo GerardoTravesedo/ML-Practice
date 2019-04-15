@@ -1,14 +1,19 @@
 import selectivesearch
 import math
 import numpy as np
+import itertools
+import random
 
 NUMBER_CLASSES = 21
 
 
-# USED THIS METHOD ONLY WHEN TRAINING
 def find_rois_complete(image_pixels, gt_boxes, min_rois_foreground, max_rois_background):
     """
     Generates a minimum number of foreground rois and a maximum number of background ones
+
+    1) First it generates a few foreground rois from the ground thruth boxes
+    2) Then it randomly generates background rois checking that the IoU with every gt box is < 0.5
+    3) If it hasn't reached the minimum number of foreground rois yet, it runs selective search
 
     :param
         image_pixels: pixels from the image
@@ -16,27 +21,29 @@ def find_rois_complete(image_pixels, gt_boxes, min_rois_foreground, max_rois_bac
         min_rois_foreground: minimum number of foreground rois to find
         max_rois_background: maximum number of background rois to find
     """
-    # Map of final foreground rois (needs to be at least min_rois_foreground)
-    # We use a map because we want a unique set of positive rois
-    rois_foreground = {}
-    # List of final background rois (needs to be at most max_rois_background)
-    rois_background = []
     # Initial scale for selective search. It will be reduces to find more foreground rois
     init_scale = 500
 
-    # Iterate until we have the required number of foreground rois
+    # Adding some foreground rois generated from the ground truth boxes
+    rois_foreground = \
+        find_foreground_rois_from_ground_truth_boxes(gt_boxes, image_pixels.shape)
+    # Adding random background rois
+    rois_background = \
+        find_random_background_rois(gt_boxes, image_pixels.shape, 200, 10, 10, 200, 200)
+
+    # Find rois using selective search until we have the required number of foreground rois
     while len(rois_foreground) < min_rois_foreground and init_scale > 100:
+        print("Only {} foreground rois were generated, but {} are required. "
+              "Running selective search".format(len(rois_foreground), min_rois_foreground))
         # Finding rois for current scale
         rois = find_rois_selective_search(image_pixels, scale=init_scale)
         # For each roi, we find if it is foreground or background
         for roi in rois:
             roi_info = find_roi_labels(roi, gt_boxes)
+            key = str(roi[0]) + str(roi[1]) + str(roi[2]) + str(roi[3])
             if len(rois_background) < max_rois_background and roi_info["class"][0] == 1:
-                rois_background.append(roi_info)
+                rois_background[key] = roi_info
             elif roi_info["class"][0] == 0:
-                # Keeping only unique positive rois (there could be duplicates coming
-                # from different calls to find_rois with different scales)
-                key = str(roi[0]) + str(roi[1]) + str(roi[2]) + str(roi[3])
                 rois_foreground[key] = roi_info
         # Reducing scale for next iteration of selective search
         init_scale = init_scale - 100
@@ -44,15 +51,14 @@ def find_rois_complete(image_pixels, gt_boxes, min_rois_foreground, max_rois_bac
     # If selective search couldn't find any positive rois even trying multiple parameters, we
     # generate our own positive rois by moving the ground truth box slightly
     if len(rois_foreground) == 0:
-        return find_rois_from_ground_truth_boxes(gt_boxes, image_pixels.shape), rois_background
+        print("It couldn't find any foreground rois")
     else:
-        return np.array(rois_foreground.values()), np.array(rois_background)
+        return np.array(rois_foreground.values()), np.array(rois_background.values())
 
 
 def find_rois_selective_search(image_pixels, scale=200, sigma=0.9, min_size=10):
     """
     Uses the selective search library to find rois
-
 
     :param
         image_path: path to an image
@@ -81,43 +87,148 @@ def find_rois_selective_search(image_pixels, scale=200, sigma=0.9, min_size=10):
     return np.array(unique_rois.values())
 
 
-def find_rois_from_ground_truth_boxes(gt_boxes, image_shape):
+def find_foreground_rois_from_ground_truth_boxes(gt_boxes, image_shape):
     """
-    Finds foreground rois from the ground truth boxes. It creates 4 foreground rois for each 
-    ground truth box by moving the box a little bit to the right, left, up and down
+    Finds foreground rois from the ground truth boxes.
 
-    :param
-        gt_boxes: Ground truth boxes from the image
-        image_shape: shape of the image that contains the boxes
+    1) It finds possible new values for each field x_min, y_min, width, height by adding
+    and subtracting small fractions of the original box's width and height
+
+    2) It finds all the combinations of new fields
+
+    3) It keeps only those with IoU > 0.7 with the original gt box
+
+    Example of result:
+
+    {'1234' : {'class': [0, 1, 0], 'bbox': [1, 2, 3, 4], 'reg_targets': [-0.1, 0.003, 1.1, 0]},
+     '6789': {'class': [0, 0, 1], 'bbox': [6, 7, 8, 9], 'reg_targets': [0.1, -0.917, 0.97, 0.01]}}
+
+    :param: gt_boxes: Ground truth boxes from the image
+    :param: image_shape: shape of the image that contains the boxes
+
+    :return: map containing the foreground rois.
+    The format is: {'key': {'class': CLASS, 'bbox': BBOX}, 'reg_targets': TARGETS}
+    where the key is constructed from the bbox fields of the roi and the value is another
+    dictionary with the roi information
     """
     image_height_pixels = image_shape[0]
     image_width_pixels = image_shape[1]
-    foreground_rois = []
+    foreground_rois = {}
+
+    def find_possible_coordinate_values(coordinate_value, axis_length, max_possible_value):
+        possible_values = set()
+
+        max_axis_displacement = axis_length / 6
+        min_axis_displacement = max_axis_displacement / 2
+
+        if not coordinate_value + max_axis_displacement > max_possible_value:
+            possible_values.add(coordinate_value + max_axis_displacement)
+
+        if not coordinate_value + min_axis_displacement > max_possible_value:
+            possible_values.add(coordinate_value + min_axis_displacement)
+
+        if coordinate_value - max_axis_displacement > 0:
+            possible_values.add(coordinate_value - max_axis_displacement)
+
+        if coordinate_value - min_axis_displacement > 0:
+            possible_values.add(coordinate_value - min_axis_displacement)
+
+        return possible_values
 
     for gt_box in gt_boxes:
+        gt_class = gt_box["class"]
         gt_box = gt_box["bbox"]
 
-        max_x = image_width_pixels - gt_box[2]
-        max_y = image_height_pixels - gt_box[3]
+        possible_min_x = \
+            find_possible_coordinate_values(gt_box[0], gt_box[2], image_width_pixels - 1)
 
-        # Move gt box to the right
-        new_x = gt_box[0] + (gt_box[2] / 4) - 1
-        if new_x < max_x:
-            foreground_rois.append([new_x, gt_box[1], gt_box[2], gt_box[3]])
-        # Move gt box to the left
-        new_x = gt_box[0] - (gt_box[2] / 4) + 1
-        if new_x > 0:
-            foreground_rois.append([new_x, gt_box[1], gt_box[2], gt_box[3]])
-        # Move gt_box up
-        new_y = gt_box[1] - (gt_box[3] / 4) + 1
-        if new_y > 0:
-            foreground_rois.append([gt_box[0], new_y, gt_box[2], gt_box[3]])
-        # Move gt_box down
-        new_y = gt_box[1] + (gt_box[3] / 4) - 1
-        if new_y < max_y:
-            foreground_rois.append([gt_box[0], new_y, gt_box[2], gt_box[3]])
+        possible_max_x = \
+            find_possible_coordinate_values(
+                gt_box[0] + gt_box[2] - 1, gt_box[2], image_width_pixels - 1)
 
-    return np.array(foreground_rois)
+        possible_min_y = \
+            find_possible_coordinate_values(gt_box[1], gt_box[3], image_height_pixels - 1)
+
+        possible_max_y = \
+            find_possible_coordinate_values(
+                gt_box[1] + gt_box[3] - 1, gt_box[3], image_height_pixels - 1)
+
+        all_combinations = list(
+            itertools.product(*[possible_min_x, possible_max_x, possible_min_y, possible_max_y]))
+
+        for combination in all_combinations:
+            bbox = [combination[0], combination[2], combination[1] - combination[0] + 1,
+                    combination[3] - combination[2] + 1]
+
+            iou = calculate_iou(gt_box, bbox)
+
+            if iou > 0.7:
+                # We create a hash key from the coordinates to prevent having duplicates
+                key = str(bbox[0]) + str(bbox[1]) + str(bbox[2]) + str(bbox[3])
+                foreground_rois[key] = \
+                    {"bbox": np.array(bbox),
+                     "class": class_string_to_index(gt_class),
+                     "reg_target": np.array(find_regression_targets(gt_box, bbox))}
+
+    return foreground_rois
+
+
+def find_random_background_rois(
+    gt_boxes, image_shape, number_background_rois, min_width, min_height, max_width, max_height):
+    """
+    This function generates a map with the specified number of background rois randomly generated.
+
+    The key in this map is used to prevent duplicate rois, and is generated by putting together
+    all the bbox fields for a given roi.
+
+    The value is the actual roi information, containing the class and the bbox.
+
+    Example of result:
+
+    {'1234' : {'class': [1, 0, 0], 'bbox': [1, 2, 3, 4], 'reg_targets': [0, 0, 0, 0]},
+     '6789': {'class': [1, 0, 0], 'bbox': [6, 7, 8, 9], 'reg_targets': [0, 0, 0, 0]}}
+
+    This function ONLY generated background rois, so the class vector will always contain a 1 at the
+    first position and a vector of zeros for the reg_targets.
+
+    It also makes sure none of the generated background rois have IoU >= 0.5 with any gt boxes
+
+    :param gt_boxes: list of ground truth boxes with format [x, y, w, h]
+    :param image_shape: shape of the image we are calculating background rois for
+    :param number_background_rois: number of rois to generate
+    :param min_width: minimum width for the rois we generate
+    :param min_height: minimum height for the rois we generate
+    :param max_width: maximum width for the rois we generate
+    :param max_height: maximum height for the rois we generate
+
+    :return: map containing the background rois.
+    The format is: {'key': {'class': CLASS, 'bbox': BBOX}, 'reg_targets': TARGETS}
+    where the key is constructed from the bbox fields of the roi and the value is another
+    dictionary with the roi information
+    """
+    background_rois = {}
+
+    while len(background_rois) < number_background_rois:
+        random_height = random.randint(min_height, max_height)
+        random_width = random.randint(min_width, max_width)
+
+        # We have to control the max possible value so it is not larger than the image size
+        random_x = random.randint(0, image_shape[1] - random_width - 1)
+        random_y = random.randint(0, image_shape[0] - random_height - 1)
+
+        random_roi = [random_x, random_y, random_width, random_height]
+
+        ious = [calculate_iou(gt_box["bbox"], random_roi) for gt_box in gt_boxes]
+        max_iou = max(ious)
+
+        if max_iou < 0.5:
+            # We create a hash key from the coordinates to prevent having duplicates
+            key = str(random_roi[0]) + str(random_roi[1]) + str(random_roi[2]) + str(random_roi[3])
+            background_rois[key] = {"bbox": np.array(random_roi),
+                                    "class": class_string_to_index("background"),
+                                    "reg_target": np.zeros(4)}
+
+    return background_rois
 
 
 def calculate_iou(gt_bbox, roi_bbox):
@@ -141,7 +252,7 @@ def calculate_iou(gt_bbox, roi_bbox):
     # We add +1 because the two boxes could be overlapping on one line of pixels (one edge), and
     # that shouldn't count as 0
     area_intersection = max(0, intersect_bottom_right_x - intersect_top_left_x + 1) * \
-        max(0, intersect_bottom_right_y - intersect_top_left_y + 1)
+                        max(0, intersect_bottom_right_y - intersect_top_left_y + 1)
 
     area_gt_bbox = gt_bbox[2] * gt_bbox[3]
     area_roi_bbox = roi_bbox[2] * roi_bbox[3]
@@ -185,13 +296,8 @@ def find_roi_labels(roi_bbox, gt_objects):
 
     # If roi_bbox_target only has zeros, any returns false
     if roi_class and roi_bbox_target.any():
-        # Calculating regression targets according to formulas on paper
-        tx = (roi_bbox_target[0] - roi_bbox[0]) / float(roi_bbox[2])
-        ty = (roi_bbox_target[1] - roi_bbox[1]) / float(roi_bbox[3])
-        tw = math.log(roi_bbox_target[2] / float(roi_bbox[2]))
-        th = math.log(roi_bbox_target[3] / float(roi_bbox[3]))
         # [tx, ty, tw, th]
-        regression_targets = [tx, ty, tw, th]
+        regression_targets = find_regression_targets(roi_bbox_target, roi_bbox)
         return {"bbox": np.array(roi_bbox),
                 "class": class_string_to_index(roi_class),
                 "reg_target": np.array(regression_targets)}
@@ -201,6 +307,29 @@ def find_roi_labels(roi_bbox, gt_objects):
         return {"bbox": np.array(roi_bbox),
                 "class": class_string_to_index("background"),
                 "reg_target": np.zeros(4)}
+
+
+def find_regression_targets(gt_box, roi_bbox):
+    """
+    The regression targets are found using the following formulas:
+
+    tx = (Gx - Px) / Pw
+    ty = (Gy - Py) / Ph
+    tw = log(Gw / Pw)
+    th = log(Gh / Ph)
+
+    :param gt_box: ground truth box used to find the reg targets
+    :param roi_bbox: roi box we need to find reg targets for
+
+    :return: regression targets [tx, ty, tw, th]
+    """
+    # Calculating regression targets according to formulas on paper
+    tx = (gt_box[0] - roi_bbox[0]) / float(roi_bbox[2])
+    ty = (gt_box[1] - roi_bbox[1]) / float(roi_bbox[3])
+    tw = math.log(gt_box[2] / float(roi_bbox[2]))
+    th = math.log(gt_box[3] / float(roi_bbox[3]))
+    # [tx, ty, tw, th]
+    return [tx, ty, tw, th]
 
 
 def class_string_to_index(class_string):

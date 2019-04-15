@@ -18,6 +18,11 @@ class TestXmlParser(object):
         self._verify_xml_annotation(data[0], "person", 388, 194, 419, 339)
         self._verify_xml_annotation(data[1], "person", 415, 192, 447, 338)
 
+    def test_is_person_valid(self):
+        input_file = "test/data/xml_annotation_multiple_objects.xml"
+        assert xml_parser.contains_valid_classes(input_file, ["person"])
+        assert not xml_parser.contains_valid_classes(input_file, ["cat"])
+
     def _verify_xml_annotation(self, object_data, class_name, xmin, ymin, xmax, ymax):
         assert object_data["class"] == class_name
         assert object_data["bbox"]["xmin"] == xmin

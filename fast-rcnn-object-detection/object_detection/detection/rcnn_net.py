@@ -35,6 +35,7 @@ def get_net(
     # Two separate branches for rois classification and regression (detection)
     classification_branch = get_classification_branch(
         number_classes, base_net, he_init)
+
     detection_branch = get_detection_branch(
         number_classes, number_regression_fields, base_net, he_init)
 

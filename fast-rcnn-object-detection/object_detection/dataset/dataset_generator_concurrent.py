@@ -5,17 +5,22 @@ from os import listdir
 
 import dataset_generator
 
-TRAINING_INPUT_FOLDER = "../dataset-training-test/training/"
+TRAINING_INPUT_FOLDER = "../dataset-training-test/training-reduced/"
 
-TEST_INPUT_FOLDER = "../dataset-training-test/test/"
+TEST_INPUT_FOLDER = "../dataset-training-test/test-reduced/"
 
 TRAINING_IMAGE_FOLDER = TRAINING_INPUT_FOLDER + "image/"
 TRAINING_ANNOTATION_FOLDER = TRAINING_INPUT_FOLDER + "annotation/"
 
-TRAINING_OUTPUT_FOLDER = "../dataset-rcnn/training-2/"
+TEST_IMAGE_FOLDER = TEST_INPUT_FOLDER + "image/"
+TEST_ANNOTATION_FOLDER = TEST_INPUT_FOLDER + "annotation/"
 
-NUMBER_THREADS = 10
-NUMBER_OUTPUT_FILES = 100
+TRAINING_OUTPUT_FOLDER = "../dataset-rcnn/training-reduced/"
+
+TEST_OUTPUT_FOLDER = "../dataset-rcnn/test-reduced/"
+
+NUMBER_THREADS = 5
+NUMBER_OUTPUT_FILES = 5
 
 
 def task(paths, output_folder, task_id):
@@ -45,20 +50,6 @@ def task(paths, output_folder, task_id):
         print("There was an exception while processing task {}".format(task_id))
 
 
-def verify_output_files(output_files_folder):
-    """
-    Shows the number of images that are part of each batch output file. We use this function
-    in order to detect incorrect behavior when generating output files
-
-    :param output_files_folder: path to folder that contains the output batch files
-    """
-    files = listdir(output_files_folder)
-    for output_file in files:
-        with open(TRAINING_OUTPUT_FOLDER + output_file, 'rb') as f:
-            data = pickle.load(f)
-            print("Number of images in file {} is {}".format(output_file, len(data)))
-
-
 def main(image_folder, annotation_folder, output_folder):
     """
     Creates a specific number of threads defined by NUMBER_THREADS to generate the rcnn input data
@@ -72,11 +63,11 @@ def main(image_folder, annotation_folder, output_folder):
     # Creating pool of subprocesses
     pool = Pool(processes=NUMBER_THREADS)
 
-    images = listdir(image_folder)
+    images = sorted(listdir(image_folder))
     number_images = len(images)
     print("Number of images to process {}".format(number_images))
 
-    annotations = listdir(annotation_folder)
+    annotations = sorted(listdir(annotation_folder))
     number_annotations = len(annotations)
     print("Number of annotations to process {}".format(number_annotations))
 
@@ -108,24 +99,27 @@ def main(image_folder, annotation_folder, output_folder):
         if not already_generated_indices \
             or next_batch_already_processed >= len(already_generated_indices) \
                 or output_file_index != already_generated_indices[next_batch_already_processed]:
-            print("Output file with id {} was NOT generated in previously"
+            print("Output file with id {} was NOT generated previously"
                   .format(output_file_index))
 
             # Finding the range of images that fall under the current batch
             # For example, if current batch is 2 and the # of images per batch is 50, then the
             # range will be [2 * 50, 2 * 50 + 50] = [100, 150]
+            # We include 150 in the example because when slicing by index, the last index is not
+            # included
             first_file_index = output_file_index * images_per_file
-
             last_file_index = output_file_index * images_per_file + images_per_file
-            # Checking for the case in which the last batch has less than the specific number
-            # of files per batch
-            last_file_index = \
-                last_file_index if last_file_index <= len(file_annotation_pairs) \
-                else len(file_annotation_pairs) - 1
 
-            print("Generating output file for images from {} to {}"
-                  .format(first_file_index, last_file_index - 1))
-            files_current_batch = file_annotation_pairs[first_file_index:last_file_index]
+            if last_file_index <= len(file_annotation_pairs):
+                print("Generating output file for images from {} to {}"
+                      .format(first_file_index, last_file_index - 1))
+            else:
+                print("Generating output file for images from {} to {}"
+                      .format(first_file_index, len(file_annotation_pairs) - 1))
+
+            files_current_batch = file_annotation_pairs[first_file_index:last_file_index] \
+                if last_file_index <= len(file_annotation_pairs) \
+                else file_annotation_pairs[first_file_index:]
 
             for file_pair in files_current_batch:
                 image_path = image_folder + file_pair[0]
@@ -151,8 +145,9 @@ def main(image_folder, annotation_folder, output_folder):
     pool.join()
 
 if __name__ == '__main__':
-    # training_image_folder = "../test/data/test-batch-reader-dataset/images/"
-    # training_annotation_folder = "../test/data/test-batch-reader-dataset/annotations/"
-    # training_output_folder = "../test/data/test-batch-reader-dataset/"
-    main(TRAINING_IMAGE_FOLDER, TRAINING_ANNOTATION_FOLDER, TRAINING_OUTPUT_FOLDER)
-    #verify_output_files(TRAINING_OUTPUT_FOLDER)
+    #training_image_folder = "../test/data/test-batch-reader-dataset/images/"
+    #training_annotation_folder = "../test/data/test-batch-reader-dataset/annotations/"
+    #training_output_folder = "../test/data/test-batch-reader-dataset/batch/"
+    #main(TRAINING_IMAGE_FOLDER, TRAINING_ANNOTATION_FOLDER, TRAINING_OUTPUT_FOLDER)
+    main(TEST_IMAGE_FOLDER, TEST_ANNOTATION_FOLDER, TEST_OUTPUT_FOLDER)
+

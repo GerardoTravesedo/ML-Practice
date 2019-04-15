@@ -1,6 +1,8 @@
 import math
 
 from dataset import dataset_generator, xml_parser, roi_tools, image_tools
+from os import listdir
+import numpy as np
 
 INPUT_FOLDER = "dataset-training-test/training/"
 
@@ -86,20 +88,20 @@ def verify_regression_targets():
     print(result_h)
 
 
-image_in_pixels = image_tools.image_to_pixels(INPUT_IMAGE)
-resized_image_in_pixels = image_tools.resize_image(image_in_pixels, 600, 600)
-
-image_annotations = xml_parser.parse_xml(INPUT_ANNOTATION)
-
-gt_bboxes = []
-
-for annotation in image_annotations:
-    bbox = dataset_generator.get_bbox(annotation["bbox"])
-
-    resized_bbox = dataset_generator.get_bbox_resized(
-        image_in_pixels.shape, resized_image_in_pixels.shape, bbox)
-
-    gt_bboxes.append({"class": annotation["class"], "bbox": resized_bbox})
+# image_in_pixels = image_tools.image_to_pixels(INPUT_IMAGE)
+# resized_image_in_pixels = image_tools.resize_image(image_in_pixels, 600, 600)
+#
+# image_annotations = xml_parser.parse_xml(INPUT_ANNOTATION)
+#
+# gt_bboxes = []
+#
+# for annotation in image_annotations:
+#     bbox = dataset_generator.get_bbox(annotation["bbox"])
+#
+#     resized_bbox = dataset_generator.get_bbox_resized(
+#         image_in_pixels.shape, resized_image_in_pixels.shape, bbox)
+#
+#     gt_bboxes.append({"class": annotation["class"], "bbox": resized_bbox})
 
 #verify_regression_targets()
 #print_iou_info(resized_image_in_pixels, gt_bboxes)
@@ -112,3 +114,28 @@ for annotation in image_annotations:
 
 #show_image_all_custom_rois(gt_bboxes, resized_image_in_pixels)
 #print_iou_info(resized_image_in_pixels, gt_bboxes)
+
+#dataset_generator.generate_reduced_training_test_sets(["cat", "bird", "aeroplane"])
+
+
+xml_data = xml_parser.parse_xml("../dataset-training-test/test-reduced/annotation/2007_002619.xml")
+print(dataset_generator.get_bbox(xml_data[0]["bbox"]))
+bbox = dataset_generator.get_bbox_resized((500, 380), (600, 600), dataset_generator.get_bbox(xml_data[0]["bbox"]))
+
+print(bbox)
+
+# rois = roi_tools.find_foreground_rois_from_ground_truth_boxes([
+#     {'class': xml_data[0]["class"], 'bbox': np.array(bbox)}], (600, 600))
+
+background_rois = roi_tools.find_random_background_rois([
+    {'class': xml_data[0]["class"], 'bbox': np.array(bbox)}], (600, 600), 200, 10, 10, 200, 200)
+
+background_bboxes = [roi["bbox"] for roi in background_rois.values()]
+
+image_tools.generate_image_with_bboxes(
+    image_tools.resize_image(
+        image_tools.image_to_pixels("../dataset-training-test/test-reduced/image/2007_002619.jpg"),
+        600, 600),
+    "test.jpg", background_bboxes, [bbox], "output/detection/")
+
+print(background_rois)

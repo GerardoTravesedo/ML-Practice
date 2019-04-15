@@ -7,17 +7,62 @@ import roi_tools
 import xml_parser
 from dataset import image_tools
 
-INPUT_FOLDER = "dataset/VOCdevkit/VOC2012/"
+INPUT_FOLDER = "../dataset/VOCdevkit/VOC2012/"
 OUTPUT_FOLDER = "dataset-rcnn/"
 
 IMAGES_PATH = INPUT_FOLDER + "JPEGImages/"
 ANNOTATIONS_PATH = INPUT_FOLDER + "Annotations/"
 
 # Generating training and tests sets
-DEST_TRAINING_FOLDER_IMAGE = "dataset-training-test/training/image/"
-DEST_TRAINING_FOLDER_ANNOTATION = "dataset-training-test/training/annotation/"
-DEST_TEST_FOLDER_IMAGE = "dataset-training-test/test/image/"
-DEST_TEST_FOLDER_ANNOTATION = "dataset-training-test/test/annotation/"
+DEST_TRAINING_FOLDER_IMAGE = "../dataset-training-test/training/image/"
+DEST_TRAINING_FOLDER_ANNOTATION = "../dataset-training-test/training/annotation/"
+DEST_TEST_FOLDER_IMAGE = "../dataset-training-test/test/image/"
+DEST_TEST_FOLDER_ANNOTATION = "../dataset-training-test/test/annotation/"
+
+# Generating reduced training and tests sets
+DEST_TRAINING_FOLDER_IMAGE_REDUCED = "../dataset-training-test/training-reduced/image/"
+DEST_TRAINING_FOLDER_ANNOTATION_REDUCED = "../dataset-training-test/training-reduced/annotation/"
+DEST_TEST_FOLDER_IMAGE_REDUCED = "../dataset-training-test/test-reduced/image/"
+DEST_TEST_FOLDER_ANNOTATION_REDUCED = "../dataset-training-test/test-reduced/annotation/"
+
+
+def generate_reduced_training_test_sets(filter_classes=None):
+    """
+    Separates original PASCAL VOC dataset into training (80%) and test(20%) for a small group
+    of classes
+
+    :param filter_classes: list with valid classes
+    """
+    def move_files(annotation_file, annotation_dest_path, image_dest_path):
+        # Moving annotation file that only contains valid objects to the output folder
+        shutil.copy(ANNOTATIONS_PATH + annotation_file, annotation_dest_path + annotation_file)
+        # Moving the corresponding image file to the output folder
+        image_file = annotation_file.split(".")[0] + ".jpg"
+        shutil.copy(IMAGES_PATH + image_file, image_dest_path + image_file)
+
+    current_image = 0
+
+    for filename in listdir(ANNOTATIONS_PATH):
+        annotation_path = ANNOTATIONS_PATH + filename
+        # If image only contains objects with the specified classes, then we move it to the
+        # destination folder
+        if not filter_classes or xml_parser.contains_valid_classes(annotation_path, filter_classes):
+            # One every five files goes to test destination folder
+            # The rest go to the training destination folder
+            if current_image % 5 == 0:
+                move_files(
+                    filename,
+                    DEST_TEST_FOLDER_ANNOTATION_REDUCED,
+                    DEST_TEST_FOLDER_IMAGE_REDUCED
+                )
+            else:
+                move_files(
+                    filename,
+                    DEST_TRAINING_FOLDER_ANNOTATION_REDUCED,
+                    DEST_TRAINING_FOLDER_IMAGE_REDUCED
+                )
+
+            current_image += 1
 
 
 def generate_training_test_sets():
@@ -35,7 +80,7 @@ def generate_training_test_sets():
         """
         current_image = 0
 
-        for filename in listdir(init_path):
+        for filename in sorted(listdir(init_path)):
             current_image = current_image + 1
             if current_image % 5 == 0:
                 shutil.copy(init_path + filename, dest_test_path + filename)
@@ -64,6 +109,7 @@ def get_image_data_training(image_path, annotation_path):
     image_in_pixels = image_tools.image_to_pixels(image_path)
     resized_image_in_pixels = image_tools.resize_image(image_in_pixels, 600, 600)
     image_info["image"] = resized_image_in_pixels
+    image_info["image_name"] = image_path
 
     # Adding all the resized ground-truth bboxes to the dictionary
     gt_boxes = []
@@ -81,7 +127,7 @@ def get_image_data_training(image_path, annotation_path):
         roi_tools.find_rois_complete(resized_image_in_pixels, gt_boxes, 4, 500)
 
     if len(image_info["rois"]) == 0:
-        print("There are no ROIs for image: " + image_path + ". Generating our own ROIs")
+        print("There are no ROIs for image: " + image_path + ". It must be a background image")
 
     return image_info
 

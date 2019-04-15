@@ -22,6 +22,11 @@ def write_predictions_to_file(output_file, labels, predictions):
             output_file.write(str(labels[index]) + ", " + str(predictions[index]) + "\n")
 
 
+def write_predictions_to_file_2(output_file, labels, predictions):
+    with open(output_file, 'a') as output_file:
+        output_file.write(str(labels) + ", " + str(predictions) + "\n")
+
+
 def write_error_to_file(output_file, iteration, error):
     """
     Writes the training error for a particular iteration to a file

@@ -24,12 +24,14 @@ class TestDatasetGenerator(object):
         result = dataset_generator.get_image_data_training(input_image_path, input_annotation_path)
         assert "image" in result
         assert (600, 600, 3) == result["image"].shape
+        assert "image_name" in result
+        assert "test/data/one_object_image.jpg" == result["image_name"]
         assert "gt_bboxes" in result
         assert 1 == len(result["gt_bboxes"])
         assert "rois" in result
-        assert 5 == len(result["rois"])
+        assert 15 == len(result["rois"])
         assert "rois_background" in result
-        assert 500 == len(result["rois_background"])
+        assert 200 == len(result["rois_background"])
 
         one_roi = result["rois"][0]
         assert 21 == len(one_roi["class"])

@@ -69,15 +69,16 @@ class DatasetReader:
         # components (images, rois, class labels, reg labels)
         data_batch = self.data[self.next_record:self.next_record + records_to_fetch]
 
+        images_names_batch = np.array([image_data["image_name"] for image_data in data_batch])
         images_batch = np.array([image_data["image"] for image_data in data_batch])
         rois_batch, class_labels_batch, reg_target_labels_batch = \
             self._find_rois_batch(data_batch)
 
         gt_objects_batch = np.array([image_data["gt_bboxes"] for image_data in data_batch])
 
-        print "Batch: {size:", records_to_fetch, \
-            ", initial_index:", self.next_record, \
-            ", final_index:", self.next_record + records_to_fetch, "}"
+        print "Batch: [size: {}, initial_index: {}, final_index: {}, images: {}]"\
+            .format(records_to_fetch, self.next_record, self.next_record + records_to_fetch,
+                    str(images_names_batch))
 
         self.next_record = self.next_record + self.number_images_in_batch
 
